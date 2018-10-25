@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
+    <title>Complete Waypoints</title>
+
+    <style>
+        /* Always set the map height explicitly to define the size of the div
+         * element that contains the map. */
+        #map {
+            height: 100%;
+        }
+        /* Optional: Makes the sample page fill the window. */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        /* Styling the input text*/
+        input[type=text] {
+            width: 20%;
+            padding: 12px 20px;
+            margin: 8px 0;
+            display: inline-block;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        /* Styling the source to destination arrowhead*/
+        i {
+            border: solid black;
+            border-width: 0 3px 3px 0;
+            display: inline-block;
+            padding: 3px;
+        }
+
+        .right {
+            transform: rotate(-45deg);
+            -webkit-transform: rotate(-45deg);
+        }
+        h1 {
+            text-align: center;
+            color: black;
+            background-color: white;
+        }
+        p1 {
+            text-align: justify;
+            color: black;
+            background-color: white;
+        }
+        div[id=form] {
+            background-color: white;
+        }
+    </style>
+</head>
+<body>
+<h1>
+    Complete Waypoints welcomes you!
+</h1>
+<p1>We are here to assist you plan your desired trip, letting you know the route and the weather as you plan your trip. Happy Searching!</p1>
+<div id="form">
+    <form name="welcomeForm" action="/index" method="post">
+        <input id="source" type="text" title="Source" name="Destination" value="Buffalo, NY, USA"/>
+        <i class="right"></i><i class="right"></i>
+        <input id="destination" type="text" title="Destination" name="Destination" value="Buffalo, NY, USA">
+    </form>
+</div>
+
+<script type="text/javascript">
+    var directionResult = null;
+    var map;
+    var markers = [];
+    var directionsDisplay;
+</script>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script>
+    $(document).ready(function(){
+        document.getElementById('source').addEventListener('change', ajaxCall);
+        document.getElementById('destination').addEventListener('change', ajaxCall);
+
+        function ajaxCall() {
+            var s = $('#source').val();
+            var d = $('#destination').val();
+            var searchData = {}
+            searchData["source"] = s;
+            searchData["destination"] = d;
+            $.ajax({
+                type: 'POST',
+                url: '/index',
+                contentType: 'application/json',
+                data: JSON.stringify(searchData),
+                dataType: 'json',
+                success: function(result) {
+                    directionResult = result;
+                    if (jQuery.isEmptyObject(directionResult)) {
+                        alert("Oops! No route found for given input");
+                    } else {
+                        renderDirections(directionResult, map);
+                    }
+                }
+            });
+        }
+    });
+</script>
+
+<div id="map"></div>
+<script>
+
+    function initMap() {
+        var source = document.getElementById('source');
+        var destination = document.getElementById('destination');
+        var autoCompleteSource = new google.maps.places.Autocomplete(source);
+        var autoCompleteDestination = new google.maps.places.Autocomplete(destination);
+        directionsDisplay = new google.maps.DirectionsRenderer;
+
+        map = new google.maps.Map(document.getElementById('map'), {
+            center: {lat: 42.88649310, lng: -78.87879310},
+            zoom: 7
+        });
+        directionsDisplay.setMap(map);
+    }
+
+    function renderDirections(directionResult,map) {
+
+        var request = {travelMode: 'DRIVING', origin: $('#source').val() , destination: $('#destination').val()}
+        var directions = {routes : modifyRoutesObj(directionResult.directions), request : request}
+
+        clearMarkers(map);
+        markers = [];
+        setMapOptions(directionResult.cities[0],map);
+        directionsDisplay.setDirections(directions);
+        directionsDisplay.setOptions( { suppressMarkers: true } );
+        directionsDisplay.setMap(map);
+        setMarkersAndInfo(directionResult.cities,map);
+    }
+
+    function setMapOptions(city,map) {
+        var center = {lat: city.lat, lng: city.lng};
+        map.setCenter(center);
+    }
+
+    function setMarkersAndInfo(cities,map) {
+        var infowindow = new google.maps.InfoWindow();
+        cities.forEach(function(city) {
+            var marker = new google.maps.Marker({
+                position: {lat: city.lat, lng: city.lng},
+                map: map
+            });
+            markers.push(marker);
+            google.maps.event.addListener(marker, 'mouseover', function() {
+                infowindow.setContent('<div><B>' + city.name + '</B><br><strong>' + city.weather + '</strong><img src="http://openweathermap.org/img/w/' + city.icon + '.png"/></div>');
+                infowindow.open(map, this);
+            });
+
+        });
+    }
+
+    function clearMarkers(map) {
+        for (var i = 0; i < markers.length; i++) {
+            markers[i].setMap(null);
+        }
+    }
+
+
+    function modifyRoutesObj(routes) {
+        routes.forEach(function(route){
+            route.bounds = asBounds(route.bounds);
+            route.legs.forEach(function(leg){
+                leg.start_location = asLatLng(leg.start_location);
+                leg.end_location   = asLatLng(leg.end_location);
+                leg.steps.forEach(function(step){
+                    step.start_location = asLatLng(step.start_location);
+                    step.end_location   = asLatLng(step.end_location);
+                    step.path = asPath(step.polyline);
+                });
+            });
+        });
+        return routes;
+    }
+
+    function asBounds(boundsObject){
+        return new google.maps.LatLngBounds(asLatLng(boundsObject.southwest),
+            asLatLng(boundsObject.northeast));
+    }
+
+    function asLatLng(latLngObject){
+        return new google.maps.LatLng(latLngObject.lat, latLngObject.lng);
+    }
+
+    function asPath(encodedPolyObject){
+        return google.maps.geometry.encoding.decodePath( encodedPolyObject.points );
+    }
+</script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB6FC5CijZVABY_rgJBIyBzZzG7UaW0dcY&libraries=places,geometry&callback=initMap"
+        async defer></script>
+
+</body>
+</html>

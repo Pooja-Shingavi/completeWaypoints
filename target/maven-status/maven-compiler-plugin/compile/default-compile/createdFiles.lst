@@ -1,0 +1,6 @@
+com/cse586/lab1/model/Waypoint.class
+com/cse586/lab1/Application.class
+com/cse586/lab1/config/WebConfig.class
+com/cse586/lab1/service/CompleteWaypointsService.class
+com/cse586/lab1/repository/WapypointRepository.class
+com/cse586/lab1/controller/CompleteWaypointsController.class
